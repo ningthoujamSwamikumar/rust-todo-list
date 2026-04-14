@@ -3,7 +3,7 @@ A pet project to practice and learn rust. This starts from a very basic input ou
 
 
 # TODO List
-- [ ] MVP - take an input and add it to list
+- [x] MVP - take an input and add it to list
 - [ ] CRUD through input commands
     - [ ] Give options for actions
     - [ ] Take input in the format `[Action] - [Input if any]`
