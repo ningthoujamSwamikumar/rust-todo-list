@@ -4,12 +4,12 @@ A pet project to practice and learn rust. This starts from a very basic input ou
 
 # TODO List
 - [x] MVP - take an input and add it to list
-- [ ] CRUD through input commands
-    - [ ] Give options for actions
-    - [ ] Take input in the format `[Action] - [Input if any]`
-    - [ ] Handle ADD
-    - [ ] Handle DEL
-    - [ ] Handle UPD
+- [x] CRUD through input commands
+    - [x] Give options for actions
+    - [x] Take input in the format `[Action] - [Input if any]`
+    - [x] Handle ADD
+    - [x] Handle DEL
+    - [x] Handle UPD
 - [ ] Command line interface
 - [ ] CLI GUI
 - [ ] Connect Database
