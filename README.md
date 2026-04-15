@@ -11,8 +11,13 @@ A pet project to practice and learn rust. This starts from a very basic input ou
     - [x] Handle DEL
     - [x] Handle UPD
 - [ ] Command line interface
+    - [ ] Redesign the code
+    - [ ] Parse commands
+    - [ ] Read/Write from/to file
 - [ ] CLI GUI
+    - [ ] 
 - [ ] Connect Database
-- [ ] API Server
+- [ ] Server Client Arch
+- [ ] Web APIs
 - [ ] Real Time Update System (Notify)
 - [ ] Multi User Access/Update
