@@ -16,9 +16,10 @@ A pet project to practice and learn rust. This starts from a very basic input ou
     - [x] Read/Write from/to file
 - [ ] CLI GUI 
 - [ ] Connect Database
-- [ ] Server Client Arch
-    - [ ] Create a Server which would keep on running all the time
-    - [ ] Create cli client which sends packets to server
+- [x] Server Client Arch
+    - [x] Create a Server which would keep on running all the time
+    - [x] Create cli client which sends packets to server
+    - [x] Connect Server and client using a custom protocol
 - [ ] Web APIs
 - [ ] Real Time Update System (Notify)
 - [ ] Multi User Access/Update

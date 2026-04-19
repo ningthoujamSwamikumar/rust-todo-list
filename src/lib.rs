@@ -28,9 +28,12 @@ pub fn init_handler() {
 
     println!("retrievals:\n{:?}", retrievals);
 
-    match todo_list.write_file(path) {
-        Ok(_) => println!("Written to file"),
-        Err(e) => println!("{:?}", e),
+    match cli.action {
+        cli_parser::Actions::Show { index: _ } => println!("Read operation need no file update."),
+        _ => match todo_list.write_file(path) {
+            Ok(_) => println!("Written to file"),
+            Err(e) => println!("{:?}", e),
+        },
     };
 }
 
