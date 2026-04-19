@@ -1,4 +1,5 @@
 use std::{
+    fmt::Write,
     io::{self, BufReader},
     path::Path,
 };
@@ -6,7 +7,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(super) struct TodoList {
+pub struct TodoList {
     contents: Vec<String>,
 }
 
@@ -71,16 +72,19 @@ impl TodoList {
         Ok(())
     }
 
-    pub fn get(&self, index: usize) -> Result<String, TodoError> {
+    pub fn get(&self, index: usize, buf: &mut String) -> Result<(), TodoError> {
         if let Some(value) = self.contents.get(index) {
-            Ok(value.clone())
+            buf.write_str(value)
+                .map_err(|e| TodoError::FailedToWrite(e.to_string()))?;
+            Ok(())
         } else {
             Err(TodoError::InvalidInput("Invalid index provided!".into()))
         }
     }
 
-    pub fn get_all(&self) -> Result<Vec<String>, TodoError> {
-        Ok(self.contents.clone())
+    pub fn get_all(&self, buf: &mut Vec<String>) -> Result<(), TodoError> {
+        self.contents.iter().for_each(|v| buf.push(v.clone()));
+        Ok(())
     }
 
     pub fn clear(&mut self) -> Result<(), TodoError> {
@@ -90,8 +94,9 @@ impl TodoList {
 }
 
 #[derive(Debug)]
-pub(super) enum TodoError {
+pub enum TodoError {
     //ParseError(String),
     InvalidInput(String),
     AccessError(String),
+    FailedToWrite(String),
 }
