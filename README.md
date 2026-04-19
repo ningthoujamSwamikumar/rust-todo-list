@@ -1,6 +1,26 @@
 # rust-todo-list
 A pet project to practice and learn rust. This starts from a very basic input output binary file to adding more novle features.
 
+# How to setup
+- Clone the repo
+```sh
+git clone https://github.com/ningthoujamSwamikumar/rust-todo-list.git
+```
+- Run cli app
+```sh
+# Run cli app i.e. src/bin/main.rs
+cd rust-todo-list && cargo run --bin main --help
+```
+or Run client-server
+```sh
+# Run server
+cd rust-todo-list && cargo run --bin server
+```
+And in separate terminal window
+```sh
+# Run client (cli)
+cd rust-todo-list && cargo run --bin client --help
+```
 
 # TODO List
 - [x] MVP - take an input and add it to list
