@@ -1,15 +1,16 @@
 use clap::{Parser, Subcommand};
+use serde::{Deserialize, Serialize};
 
-#[derive(Parser)]
+#[derive(Parser, Debug, Serialize, Deserialize)]
 #[command(name = "todo", version = "1.0", about = "Manage your tasks")]
-pub(super) struct Cli {
+pub struct Cli {
     /// Subcommands
     #[command(subcommand)]
     pub action: Actions,
 }
 
-#[derive(Subcommand)]
-pub(super) enum Actions {
+#[derive(Debug, Subcommand, Serialize, Deserialize)]
+pub enum Actions {
     /// Add a new task
     Add {
         /// The task description

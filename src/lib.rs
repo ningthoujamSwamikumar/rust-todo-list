@@ -21,7 +21,7 @@ pub fn init_handler() {
     };
 
     let mut retrievals = Vec::<String>::new();
-    match action_handler(cli.action, &mut todo_list, &mut retrievals) {
+    match action_handler(&cli.action, &mut todo_list, &mut retrievals) {
         Ok(_) => println!("Action Completed Successfully"),
         Err(e) => eprintln!("Error performing action:\n{:?}", e),
     };
@@ -35,23 +35,25 @@ pub fn init_handler() {
 }
 
 pub fn action_handler(
-    action: cli_parser::Actions,
+    action: &cli_parser::Actions,
     todo_list: &mut TodoList,
     buf: &mut Vec<String>,
 ) -> Result<(), TodoError> {
     match action {
-        cli_parser::Actions::Add { value } => todo_list.add(value),
-        cli_parser::Actions::Delete { index } => todo_list.delete(index),
+        cli_parser::Actions::Add { value } => todo_list.add(value.clone()),
+        cli_parser::Actions::Delete { index } => todo_list.delete(index.clone()),
         cli_parser::Actions::Show { index } => match index {
             Some(i) => {
                 let mut buf_0 = String::new();
-                todo_list.get(i, &mut buf_0)?;
+                todo_list.get(i.clone(), &mut buf_0)?;
                 buf.push(buf_0);
                 Ok(())
             }
             None => todo_list.get_all(buf),
         },
-        cli_parser::Actions::Update { index, value } => todo_list.update(index, value),
+        cli_parser::Actions::Update { index, value } => {
+            todo_list.update(index.clone(), value.clone())
+        }
         cli_parser::Actions::Clear => todo_list.clear(),
     }
 }

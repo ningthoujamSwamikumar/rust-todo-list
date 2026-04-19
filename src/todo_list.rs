@@ -1,5 +1,5 @@
 use std::{
-    fmt::Write,
+    fmt::{Display, Write},
     io::{self, BufReader},
     path::Path,
 };
@@ -99,4 +99,14 @@ pub enum TodoError {
     InvalidInput(String),
     AccessError(String),
     FailedToWrite(String),
+}
+
+impl Display for TodoError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TodoError::AccessError(err) => write!(f, "AccessError - {}", err),
+            TodoError::FailedToWrite(err) => write!(f, "FailedToWrite - {}", err),
+            TodoError::InvalidInput(err) => write!(f, "InvalidInput - {}", err),
+        }
+    }
 }
