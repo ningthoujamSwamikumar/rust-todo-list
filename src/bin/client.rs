@@ -1,15 +1,16 @@
 use clap::Parser;
 use rust_todo_list::cli_parser;
-use tokio::{io::{self, AsyncReadExt, AsyncWriteExt}, net::TcpStream};
-
+use tokio::{
+    io::{self, AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+};
 
 #[tokio::main]
-async fn main()->io::Result<()>{
+async fn main() -> io::Result<()> {
     let cli = cli_parser::Cli::parse();
-    //println!("cli:\n{:?}", cli);
-    
-    let cli_string = serde_json::to_string(&cli.action)?;
-    //println!("cli_string: \n{}", cli_string);
+
+    let mut cli_string = serde_json::to_string(&cli.action)?;
+    cli_string.push('\n');
 
     let mut tcp_stream = TcpStream::connect("127.0.0.1:6379").await?;
     println!("Connected to server");

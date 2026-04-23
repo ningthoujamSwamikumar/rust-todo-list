@@ -3,18 +3,25 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use rust_todo_list::{
-    action_handler,
-    cli_parser::{self, Actions},
-    todo_list,
-};
+use rust_todo_list::{action_handler, cli_parser, todo_list};
+use sqlx::{Row, postgres::PgPoolOptions};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
 };
 
 #[tokio::main]
-async fn main() -> tokio::io::Result<()> {
+async fn main() -> Result<(), sqlx::Error> {
+    let pool = PgPoolOptions::new()
+        .connect("postgres://postgres@localhost:5432/postgres")
+        .await?;
+    println!("Connection to postgres is successful");
+
+    sqlx::query("CREATE TABLE IF NOT EXISTS todo (id SERIAL PRIMARY KEY, task TEXT)")
+        .execute(&pool)
+        .await?;
+    println!("Table created");
+
     let listener = TcpListener::bind("127.0.0.1:6379").await?;
     let path = Path::new("target/.todo_list.json");
     let list = match todo_list::TodoList::from_file(&path) {
@@ -63,7 +70,7 @@ async fn run_server(
     }
 }
 
-async fn process(mut tcp_stream: TcpStream, list: Arc<Mutex<todo_list::TodoList>>) {
+async fn process<'a>(mut tcp_stream: TcpStream, list: Arc<Mutex<todo_list::TodoList<'a>>>) {
     let mut buf = vec![0; 1024];
     loop {
         let n = match tcp_stream.read(&mut buf).await {
@@ -83,22 +90,19 @@ async fn process(mut tcp_stream: TcpStream, list: Arc<Mutex<todo_list::TodoList>
             Ok(action) => {
                 let mut retrievals = Vec::<String>::new();
                 let mut list = list.lock().unwrap();
-                match action_handler(&action, &mut list, &mut retrievals) {
+                match action_handler(action, &mut list, &mut retrievals).await {
                     Ok(()) => {
-                        let mut result = String::new();
-                        match action {
-                            Actions::Show { index: None } => {
-                                let values = retrievals.join(", ");
-                                result.push_str("[ ");
-                                result.push_str(&values);
-                                result.push_str(" ]\n");
-                            }
-                            Actions::Show { index: Some(_) } => {
-                                result.push_str(&retrievals.join(", "))
-                            }
-                            _ => result.push_str("Ok"),
-                        };
-                        result
+                        let mut values = retrievals.join(", ");
+                        if retrievals.len() > 1 {
+                            values.insert_str(0, "[ ");
+                            values.push_str(" ]\n");
+
+                            values
+                        } else if retrievals.len() == 1 {
+                            values
+                        } else {
+                            String::from("Ok")
+                        }
                     }
                     Err(e) => e.to_string(),
                 }

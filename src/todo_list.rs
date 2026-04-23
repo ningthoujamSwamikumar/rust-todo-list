@@ -1,19 +1,39 @@
 use std::{
-    fmt::{Display, Write},
+    fmt::Write,
     io::{self, BufReader},
     path::Path,
 };
 
 use serde::{Deserialize, Serialize};
+use sqlx::{
+    Pool, Postgres, Row,
+    postgres::{PgQueryResult, PgRow},
+};
 
+use crate::error::TodoError;
+
+/// Struct that holds the list in memory when using files to persist the list
+/// When using db, we just initialized to empty list, and not really use the contents
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TodoList {
     contents: Vec<String>,
+    #[serde(skip)]
+    executor: Option<Pool<Postgres>>,
 }
 
 impl TodoList {
     pub fn new() -> Self {
-        TodoList { contents: vec![] }
+        TodoList {
+            contents: vec![],
+            executor: Option::default(),
+        }
+    }
+
+    pub fn new_with_db(executor: Pool<Postgres>) -> Self {
+        TodoList {
+            contents: vec![],
+            executor: Some(executor),
+        }
     }
 
     /// Read todo list from a json file
@@ -43,13 +63,35 @@ impl TodoList {
 
 /// define operations on todo_list
 impl TodoList {
-    pub fn add(&mut self, value: String) -> Result<(), TodoError> {
+    pub async fn add(&mut self, value: String) -> Result<(), TodoError> {
+        if let Some(pool) = &self.executor {
+            let result: PgQueryResult = sqlx::query("INSERT INTO todo (task) VALUES ($1)")
+                .bind(value)
+                .execute(pool)
+                .await?;
+            println!("Inserted {} row", result.rows_affected());
+            return Ok(());
+        }
+
         self.contents.push(value);
         println!("Value added at {}", self.contents.len() - 1);
         Ok(())
     }
 
-    pub fn update(&mut self, index: usize, value: String) -> Result<(), TodoError> {
+    pub async fn update(&mut self, index: usize, value: String) -> Result<(), TodoError> {
+        if let Some(pool) = &self.executor {
+            // task when stored in a db
+            let result: PgQueryResult = sqlx::query("UPDATE todo SET task=$1 WHERE id=$2")
+                .bind(value)
+                .bind(index as i32)
+                .execute(pool)
+                .await?;
+            println!("Updated {} rows.", result.rows_affected());
+
+            return Ok(());
+        }
+
+        // processing when task are stored in file
         if index >= self.contents.len() {
             return Err(TodoError::InvalidInput("Invalid index provided!".into()));
         };
@@ -63,7 +105,17 @@ impl TodoList {
         Ok(())
     }
 
-    pub fn delete(&mut self, index: usize) -> Result<(), TodoError> {
+    pub async fn delete(&mut self, index: usize) -> Result<(), TodoError> {
+        if let Some(pool) = &self.executor {
+            let result: PgQueryResult = sqlx::query("DELETE FROM todo WHERE id=$1")
+                .bind(index as i32)
+                .execute(pool)
+                .await?;
+            println!("Deleted {} row.", result.rows_affected());
+
+            return Ok(());
+        }
+
         if index >= self.contents.len() {
             return Err(TodoError::InvalidInput("Invalid index provided!".into()));
         };
@@ -72,7 +124,21 @@ impl TodoList {
         Ok(())
     }
 
-    pub fn get(&self, index: usize, buf: &mut String) -> Result<(), TodoError> {
+    pub async fn get(&self, index: usize, buf: &mut String) -> Result<(), TodoError> {
+        if let Some(pool) = &self.executor {
+            let result: PgRow = sqlx::query("SELECT * FROM todo WHERE id=$1")
+                .bind(index as i32)
+                .fetch_one(pool)
+                .await?;
+            buf.write_fmt(format_args!(
+                "{}, \"{}\"",
+                result.get::<i32, &str>("id"),
+                result.get::<String, &str>("task")
+            ))?;
+
+            return Ok(());
+        }
+
         if let Some(value) = self.contents.get(index) {
             buf.write_str(value)
                 .map_err(|e| TodoError::FailedToWrite(e.to_string()))?;
@@ -82,31 +148,36 @@ impl TodoList {
         }
     }
 
-    pub fn get_all(&self, buf: &mut Vec<String>) -> Result<(), TodoError> {
-        self.contents.iter().for_each(|v| buf.push(v.clone()));
+    pub async fn get_all(&self, buf: &mut Vec<String>) -> Result<(), TodoError> {
+        if let Some(pool) = &self.executor {
+            let result: Vec<PgRow> = sqlx::query("SELECT * FROM todo").fetch_all(pool).await?;
+
+            for row in result {
+                buf.push(format!(
+                    "({},\"{}\")",
+                    row.get::<i32, &str>("id"),
+                    row.get::<String, &str>("task")
+                ));
+            }
+
+            return Ok(());
+        }
+
+        self.contents
+            .iter()
+            .for_each(|v: &String| buf.push(v.clone()));
         Ok(())
     }
 
-    pub fn clear(&mut self) -> Result<(), TodoError> {
+    pub async fn clear(&mut self) -> Result<(), TodoError> {
+        if let Some(pool) = &self.executor {
+            let result: PgQueryResult = sqlx::query("TRUNCATE TABLE todo").execute(pool).await?;
+            println!("Cleared {} rows", result.rows_affected());
+
+            return Ok(());
+        }
+
         self.contents.clear();
         Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub enum TodoError {
-    //ParseError(String),
-    InvalidInput(String),
-    AccessError(String),
-    FailedToWrite(String),
-}
-
-impl Display for TodoError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TodoError::AccessError(err) => write!(f, "AccessError - {}", err),
-            TodoError::FailedToWrite(err) => write!(f, "FailedToWrite - {}", err),
-            TodoError::InvalidInput(err) => write!(f, "InvalidInput - {}", err),
-        }
     }
 }

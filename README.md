@@ -40,6 +40,7 @@ cd rust-todo-list && cargo run --bin client --help
     - [x] Create a Server which would keep on running all the time
     - [x] Create cli client which sends packets to server
     - [x] Connect Server and client using a custom protocol
+- [ ] Write Tests
 - [ ] Web APIs
 - [ ] Real Time Update System (Notify)
 - [ ] Multi User Access/Update
