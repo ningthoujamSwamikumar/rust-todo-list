@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use sqlx::error;
+
 #[derive(Debug)]
 pub enum TodoError {
     Sqlx(sqlx::Error),
@@ -9,6 +11,7 @@ pub enum TodoError {
     FailedToWrite(String),
     DbConnectionError(String),
     Fmt(std::fmt::Error),
+    SerdeJson(serde_json::Error),
 }
 
 impl Display for TodoError {
@@ -21,6 +24,7 @@ impl Display for TodoError {
             TodoError::Io(err) => write!(f, "Io - {}", err.to_string()),
             TodoError::Sqlx(err) => write!(f, "Sqlx - {}", err.to_string()),
             TodoError::Fmt(err) => write!(f, "std::fmt::Error - {}", err.to_string()),
+            TodoError::SerdeJson(err) => write!(f, "serde_json::Error - {}", err.to_string()),
         }
     }
 }
@@ -40,5 +44,11 @@ impl From<std::io::Error> for TodoError {
 impl From<std::fmt::Error> for TodoError {
     fn from(value: std::fmt::Error) -> Self {
         TodoError::Fmt(value)
+    }
+}
+
+impl From<serde_json::Error> for TodoError {
+    fn from(value: serde_json::Error) -> Self {
+        TodoError::SerdeJson(value)
     }
 }

@@ -1,10 +1,6 @@
-use std::{
-    path::Path,
-    sync::{Arc, Mutex},
-};
-
-use rust_todo_list::{action_handler, cli_parser, todo_list};
-use sqlx::{Row, postgres::PgPoolOptions};
+use bytes::{Buf, BytesMut};
+use rust_todo_list::{cli_parser::Actions, error::TodoError, todo_list::TodoList};
+use sqlx::postgres::PgPoolOptions;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -17,107 +13,164 @@ async fn main() -> Result<(), sqlx::Error> {
         .await?;
     println!("Connection to postgres is successful");
 
-    sqlx::query("CREATE TABLE IF NOT EXISTS todo (id SERIAL PRIMARY KEY, task TEXT)")
-        .execute(&pool)
-        .await?;
-    println!("Table created");
+    let list = TodoList::new_with_db(pool);
 
+    // Worker need to be started first before we start listening for inbounds
+    let sender_to_worker = run_worker(list).await;
+
+    // setup tcp ports and server
     let listener = TcpListener::bind("127.0.0.1:6379").await?;
-    let path = Path::new("target/.todo_list.json");
-    let list = match todo_list::TodoList::from_file(&path) {
-        Ok(list) => list,
-        Err(e) => {
-            eprintln!("Error creating todo_list from file:\n{:?}", e);
-            todo_list::TodoList::new()
-        }
-    };
-
-    let arc_list = Arc::new(Mutex::new(list));
-
-    let server = run_server(listener, arc_list.clone());
+    let server = run_server(listener, sender_to_worker);
 
     //wait for either server crash or Ctrl+C
     tokio::select! {
-        _ = server => {},
+        _ = server => {
+            println!("App Crash");
+        },
         _ = tokio::signal::ctrl_c()=>{
             println!("Shutdown signal received");
         }
     };
 
-    //save on shutdown
-    match arc_list.lock().unwrap().write_file(&path) {
-        Ok(()) => println!("List saved to file"),
-        Err(e) => eprintln!("Failed to saved the list to file - \n{:?}", e),
-    };
-
     Ok(())
+}
+
+/// starts a worker, which takes commands through a message channel and perform the action
+async fn run_worker(
+    mut todo: TodoList,
+) -> tokio::sync::mpsc::Sender<(
+    Actions,
+    tokio::sync::oneshot::Sender<Result<String, TodoError>>,
+)> {
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<(
+        Actions,
+        tokio::sync::oneshot::Sender<Result<String, TodoError>>,
+    )>(32);
+
+    tokio::spawn(async move {
+        let mut retrievals: Vec<String> = Vec::new();
+
+        loop {
+            retrievals.clear(); //cleared to handle new action
+
+            let Some((action, oneshot_sender)) = rx.recv().await else {
+                println!("Message channel has been closed. Exiting ...");
+                return;
+            };
+
+            let result = match action {
+                Actions::Add { value } => todo.add(value).await.map(|_| String::from("Ok")),
+                Actions::Delete { index } => todo.delete(index).await.map(|_| String::from("Ok")),
+                Actions::Show { index } => {
+                    if let Some(i) = index {
+                        let mut buf = String::new();
+                        todo.get(i, &mut buf).await.map(|_| format!("Ok\n{}", buf))
+                    } else {
+                        todo.get_all(&mut retrievals)
+                            .await
+                            .map(|_| format!("Ok\n{:?}", retrievals))
+                    }
+                }
+                Actions::Update { index, value } => {
+                    todo.update(index, value).await.map(|_| String::from("Ok"))
+                }
+                Actions::Clear => todo.clear().await.map(|_| String::from("Ok")),
+            };
+
+            if let Err(_) = oneshot_sender.send(result) {
+                eprintln!("Server has been disconnected!");
+                return;
+            }
+        }
+    });
+
+    tx
 }
 
 async fn run_server(
     listener: TcpListener,
-    arc_list: Arc<Mutex<todo_list::TodoList>>,
+    sender: tokio::sync::mpsc::Sender<(
+        Actions,
+        tokio::sync::oneshot::Sender<Result<String, TodoError>>,
+    )>,
 ) -> tokio::io::Result<()> {
     loop {
         // Accepts a tcp connection
         let (tcp_stream, socket_addr) = listener.accept().await?;
         println!("Connection recieved from client at - {}", socket_addr);
 
-        let list = arc_list.clone();
+        let sender_copy = sender.clone();
 
         tokio::spawn(async move {
-            process(tcp_stream, list).await;
+            process(tcp_stream, sender_copy).await;
         });
     }
 }
 
-async fn process<'a>(mut tcp_stream: TcpStream, list: Arc<Mutex<todo_list::TodoList<'a>>>) {
-    let mut buf = vec![0; 1024];
+async fn process(
+    mut tcp_stream: TcpStream,
+    sender: tokio::sync::mpsc::Sender<(
+        Actions,
+        tokio::sync::oneshot::Sender<Result<String, TodoError>>,
+    )>,
+) {
+    let (tx, rx) = tokio::sync::oneshot::channel::<Result<String, TodoError>>();
+
+    let mut buf: BytesMut = BytesMut::new();
+    let received_action;
+
+    //framing the receiving bytes
     loop {
-        let n = match tcp_stream.read(&mut buf).await {
-            Ok(0) => return,
-            Ok(n) => n,
+        match tcp_stream.read_buf(&mut buf).await {
             Err(e) => {
-                eprintln!("Error reading: {:?}", e);
+                eprintln!("Error reading bytes to buffer:\n{:?}", e);
                 return;
             }
+            Ok(0) => {
+                println!("Connection closed.");
+                return;
+            }
+            _ => {}
         };
 
-        let recieved = String::from_utf8_lossy(&buf[0..n]);
-        println!("received: {}", recieved);
+        //find the delimitor of the frame
+        if let Some(n) = buf.iter().position(|&b| b == 0) {
+            //take the frame from the bytesmut var i.e. buf and write it to received.
+            let frame = buf.split_to(n);
+            buf.advance(1); //skip the null character '\0'
+            //we can directly convert to json from byte slice, without converting first to string
+            received_action = serde_json::from_slice::<Actions>(&frame);
+            break;
+        }
+    }
 
-        let received_action = serde_json::from_str::<cli_parser::Actions>(&recieved);
-        let response = match received_action {
-            Ok(action) => {
-                let mut retrievals = Vec::<String>::new();
-                let mut list = list.lock().unwrap();
-                match action_handler(action, &mut list, &mut retrievals).await {
-                    Ok(()) => {
-                        let mut values = retrievals.join(", ");
-                        if retrievals.len() > 1 {
-                            values.insert_str(0, "[ ");
-                            values.push_str(" ]\n");
-
-                            values
-                        } else if retrievals.len() == 1 {
-                            values
-                        } else {
-                            String::from("Ok")
-                        }
-                    }
+    let mut response = match received_action {
+        Ok(action) => {
+            if sender.send((action, tx)).await.is_err() {
+                eprintln!("Failed to pass message to worker thread!");
+                String::from("Internal Error - Failed to connect to worker thread!")
+            } else {
+                match rx.await {
+                    Ok(res) => match res {
+                        Ok(r) => r,
+                        Err(e) => e.to_string(),
+                    },
                     Err(e) => e.to_string(),
                 }
             }
-            Err(e) => format!(
-                "Something went wrong in deserialization of action!\n{:?}",
-                e
-            ),
-        };
-
-        //write back the response
-        if let Err(e) = tcp_stream.write_all(response.as_bytes()).await {
-            eprintln!("Error writing: {:?}", e);
-            return;
         }
-        println!("Response sent: {}", response);
+        Err(e) => {
+            eprintln!("Error deserialization:\n{:?}", e);
+            format!("Failed deserialization\n{:?}", e)
+        }
+    };
+
+    //Append delimitor
+    response.push('\0');
+    //write back the response
+    if let Err(e) = tcp_stream.write_all(response.as_bytes()).await {
+        eprintln!("Error writing: {:?}", e);
+        return;
     }
+    println!("Response sent: {}", response);
 }
