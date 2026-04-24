@@ -1,5 +1,7 @@
 use bytes::{Buf, BytesMut};
-use rust_todo_list::{cli_parser::Actions, error::TodoError, todo_list::TodoList};
+use rust_todo_list::{
+    cli_parser::Actions, db_storage::DbStorage, error::TodoError, todo_list::TodoOps,
+};
 use sqlx::postgres::PgPoolOptions;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -13,10 +15,10 @@ async fn main() -> Result<(), sqlx::Error> {
         .await?;
     println!("Connection to postgres is successful");
 
-    let list = TodoList::new_with_db(pool);
+    let todo_db = DbStorage::new(pool);
 
     // Worker need to be started first before we start listening for inbounds
-    let sender_to_worker = run_worker(list).await;
+    let sender_to_worker = run_worker(todo_db).await;
 
     // setup tcp ports and server
     let listener = TcpListener::bind("127.0.0.1:6379").await?;
@@ -37,7 +39,7 @@ async fn main() -> Result<(), sqlx::Error> {
 
 /// starts a worker, which takes commands through a message channel and perform the action
 async fn run_worker(
-    mut todo: TodoList,
+    mut todo: DbStorage,
 ) -> tokio::sync::mpsc::Sender<(
     Actions,
     tokio::sync::oneshot::Sender<Result<String, TodoError>>,
@@ -60,20 +62,22 @@ async fn run_worker(
 
             let result = match action {
                 Actions::Add { value } => todo.add(value).await.map(|_| String::from("Ok")),
-                Actions::Delete { index } => todo.delete(index).await.map(|_| String::from("Ok")),
+                Actions::Delete { index } => {
+                    todo.delete(index as i32).await.map(|_| String::from("Ok"))
+                }
                 Actions::Show { index } => {
                     if let Some(i) = index {
-                        let mut buf = String::new();
-                        todo.get(i, &mut buf).await.map(|_| format!("Ok\n{}", buf))
-                    } else {
-                        todo.get_all(&mut retrievals)
+                        todo.get(i as i32)
                             .await
-                            .map(|_| format!("Ok\n{:?}", retrievals))
+                            .map(|value| format!("Ok\n{}", value))
+                    } else {
+                        todo.get_all().await.map(|value| format!("Ok\n{}", value))
                     }
                 }
-                Actions::Update { index, value } => {
-                    todo.update(index, value).await.map(|_| String::from("Ok"))
-                }
+                Actions::Update { index, value } => todo
+                    .update(index as i32, value)
+                    .await
+                    .map(|_| String::from("Ok")),
                 Actions::Clear => todo.clear().await.map(|_| String::from("Ok")),
             };
 

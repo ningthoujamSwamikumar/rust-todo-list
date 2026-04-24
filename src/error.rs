@@ -1,7 +1,5 @@
 use std::fmt::Display;
 
-use sqlx::error;
-
 #[derive(Debug)]
 pub enum TodoError {
     Sqlx(sqlx::Error),

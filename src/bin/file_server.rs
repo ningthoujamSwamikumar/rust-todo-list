@@ -1,6 +1,6 @@
 use std::{path::Path, sync::Arc};
 
-use rust_todo_list::{action_handler, cli_parser, todo_list};
+use rust_todo_list::{action_handler, cli_parser, file_storage::FileStorage};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
@@ -10,11 +10,11 @@ use tokio::{
 async fn main() -> Result<(), sqlx::Error> {
     let listener = TcpListener::bind("127.0.0.1:6379").await?;
     let path = Path::new("target/.todo_list.json");
-    let list = match todo_list::TodoList::from_file(&path) {
+    let list = match FileStorage::from_file(&path) {
         Ok(list) => list,
         Err(e) => {
             eprintln!("Error creating todo_list from file:\n{:?}", e);
-            todo_list::TodoList::new()
+            FileStorage::new()
         }
     };
 
@@ -41,7 +41,7 @@ async fn main() -> Result<(), sqlx::Error> {
 
 async fn run_server(
     listener: TcpListener,
-    arc_list: Arc<tokio::sync::Mutex<todo_list::TodoList>>,
+    arc_list: Arc<tokio::sync::Mutex<FileStorage>>,
 ) -> tokio::io::Result<()> {
     loop {
         // Accepts a tcp connection
@@ -56,7 +56,7 @@ async fn run_server(
     }
 }
 
-async fn process(mut tcp_stream: TcpStream, list: Arc<tokio::sync::Mutex<todo_list::TodoList>>) {
+async fn process(mut tcp_stream: TcpStream, list: Arc<tokio::sync::Mutex<FileStorage>>) {
     let mut received = String::new();
     let (read_half, mut write_half) = tcp_stream.split();
     //wrap the stream in a buffered reader
@@ -80,7 +80,7 @@ async fn process(mut tcp_stream: TcpStream, list: Arc<tokio::sync::Mutex<todo_li
             Ok(action) => {
                 let mut retrievals = Vec::<String>::new();
                 let mut list = list.lock().await;
-                match action_handler(action, &mut list, &mut retrievals).await {
+                match action_handler(action, &mut *list, &mut retrievals).await {
                     Ok(()) => {
                         let mut values = retrievals.join(", ");
                         if retrievals.len() > 1 {

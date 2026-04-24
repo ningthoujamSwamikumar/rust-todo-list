@@ -2,10 +2,12 @@ use std::path::Path;
 
 use clap::Parser;
 
-use crate::{error::TodoError, todo_list::TodoList};
+use crate::{error::TodoError, file_storage::FileStorage, todo_list::TodoResult};
 
 pub mod cli_parser;
+pub mod db_storage;
 pub mod error;
+pub mod file_storage;
 pub mod todo_list;
 
 #[cfg(test)]
@@ -18,11 +20,11 @@ pub async fn init_file_todo() {
 
     let path = Path::new("target/.todo_list.json");
 
-    let mut todo_list = match TodoList::from_file(path) {
+    let mut todo_list = match file_storage::FileStorage::from_file(path) {
         Ok(list) => list,
         Err(e) => {
             println!("{:?}", e);
-            TodoList::new()
+            FileStorage::new()
         }
     };
 
@@ -32,7 +34,7 @@ pub async fn init_file_todo() {
         Err(e) => eprintln!("Error performing action:\n{:?}", e),
     };
 
-    //println!("retrievals:\n{:?}", retrievals);
+    println!("retrievals:\n{:?}", retrievals);
 
     match todo_list.write_file(path) {
         Ok(_) => println!("Written to file"),
@@ -42,22 +44,29 @@ pub async fn init_file_todo() {
 
 pub async fn action_handler(
     action: cli_parser::Actions,
-    todo_list: &mut TodoList,
+    todo_list: &mut impl todo_list::TodoOps,
     buf: &mut Vec<String>,
 ) -> Result<(), TodoError> {
     match action {
-        cli_parser::Actions::Add { value } => todo_list.add(value).await,
-        cli_parser::Actions::Delete { index } => todo_list.delete(index).await,
+        cli_parser::Actions::Add { value } => todo_list.add(value).await.map(|_| ()),
+        cli_parser::Actions::Delete { index } => todo_list.delete(index as i32).await.map(|_| ()),
         cli_parser::Actions::Show { index } => match index {
             Some(i) => {
-                let mut buf_0 = String::new();
-                todo_list.get(i, &mut buf_0).await?;
-                buf.push(buf_0);
+                let result = todo_list.get(i as i32).await?;
+                buf.push(result.to_string());
                 Ok(())
             }
-            None => todo_list.get_all(buf).await,
+            None => {
+                let result: Result<todo_list::TodoResult, TodoError> = todo_list.get_all().await;
+                if let Ok(TodoResult::GottenAll(list)) = result {
+                    buf.extend(list.iter().map(|v| v.task.clone()));
+                }
+                Ok(())
+            }
         },
-        cli_parser::Actions::Update { index, value } => todo_list.update(index, value).await,
-        cli_parser::Actions::Clear => todo_list.clear().await,
+        cli_parser::Actions::Update { index, value } => {
+            todo_list.update(index as i32, value).await.map(|_| ())
+        }
+        cli_parser::Actions::Clear => todo_list.clear().await.map(|_| ()),
     }
 }

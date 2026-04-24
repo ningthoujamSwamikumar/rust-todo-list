@@ -71,13 +71,13 @@ cd rust-todo-list && cargo run --bin db_client --help
     - [x] Parse commands
     - [x] Read/Write from/to file
 - [ ] CLI GUI 
-- [ ] Connect Database
+- [x] Connect Database
     - [x] Test database connection
     - [x] Segregate servers into file based server, and db based server
     - [x] Refactor todo list to accomodate database operations
     - [x] Refactor server codes to accomodate async todo methods
     - [x] Redesign to replace use of global Mutex, to scalable message passing to a worker thread
-    - [ ] Extract todo operations as trait and implement to different structs for db and file based apps
+    - [x] Extract todo operations as trait and implement to different structs for db and file based apps
 - [x] Server Client Arch
     - [x] Create a Server which would keep on running all the time
     - [x] Create cli client which sends packets to server
