@@ -84,6 +84,8 @@ cd rust-todo-list && cargo run --bin db_client --help
     - [x] Connect Server and client using a custom protocol
 - [ ] Write Tests
 - [ ] Web APIs
+    - [ ] Hello World api
+    - [ ] 
 - [ ] Real Time Update System (Notify)
 - [ ] Multi User Access/Update
 - [ ] Upgrade clients to session based clients like psql interface in postgresql db
