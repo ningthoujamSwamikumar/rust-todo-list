@@ -15,11 +15,11 @@ pub async fn action_handler(
     buf: &mut Vec<String>,
 ) -> Result<(), TodoError> {
     match action {
-        cli_parser::Actions::Add { value } => todo_list.add(value).await.map(|_| ()),
-        cli_parser::Actions::Delete { index } => todo_list.delete(index as i32).await.map(|_| ()),
-        cli_parser::Actions::Show { index } => match index {
+        cli_parser::Actions::Add { task } => todo_list.add(task).await.map(|_| ()),
+        cli_parser::Actions::Delete { id } => todo_list.delete(id).await.map(|_| ()),
+        cli_parser::Actions::Show { id } => match id {
             Some(i) => {
-                let result = todo_list.get(i as i32).await?;
+                let result = todo_list.get(i).await?;
                 buf.push(result.to_string());
                 Ok(())
             }
@@ -31,9 +31,7 @@ pub async fn action_handler(
                 Ok(())
             }
         },
-        cli_parser::Actions::Update { index, value } => {
-            todo_list.update(index as i32, value).await.map(|_| ())
-        }
+        cli_parser::Actions::Update { id, task } => todo_list.update(id, task).await.map(|_| ()),
         cli_parser::Actions::Clear => todo_list.clear().await.map(|_| ()),
     }
 }

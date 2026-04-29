@@ -61,12 +61,10 @@ async fn run_worker(
             };
 
             let result = match action {
-                Actions::Add { value } => todo.add(value).await.map(|_| String::from("Ok")),
-                Actions::Delete { index } => {
-                    todo.delete(index as i32).await.map(|_| String::from("Ok"))
-                }
-                Actions::Show { index } => {
-                    if let Some(i) = index {
+                Actions::Add { task } => todo.add(task).await.map(|_| String::from("Ok")),
+                Actions::Delete { id } => todo.delete(id).await.map(|_| String::from("Ok")),
+                Actions::Show { id } => {
+                    if let Some(i) = id {
                         todo.get(i as i32)
                             .await
                             .map(|value| format!("Ok\n{}", value))
@@ -74,10 +72,9 @@ async fn run_worker(
                         todo.get_all().await.map(|value| format!("Ok\n{}", value))
                     }
                 }
-                Actions::Update { index, value } => todo
-                    .update(index as i32, value)
-                    .await
-                    .map(|_| String::from("Ok")),
+                Actions::Update { id, task } => {
+                    todo.update(id, task).await.map(|_| String::from("Ok"))
+                }
                 Actions::Clear => todo.clear().await.map(|_| String::from("Ok")),
             };
 
