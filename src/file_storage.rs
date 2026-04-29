@@ -3,6 +3,7 @@ use std::{
     path::Path,
 };
 
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -45,6 +46,7 @@ impl FileStorage {
     }
 }
 
+#[async_trait]
 impl TodoOps for FileStorage {
     async fn add(&mut self, value: String) -> Result<TodoResult, TodoError> {
         self.contents.push(value.clone());

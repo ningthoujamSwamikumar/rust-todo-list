@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use sqlx::{Pool, Postgres};
 
 use crate::{
@@ -16,30 +17,34 @@ impl DbStorage {
     }
 }
 
+#[async_trait]
 impl TodoOps for DbStorage {
     async fn add(&mut self, value: String) -> Result<TodoResult, TodoError> {
-        let result: Todo = sqlx::query_as::<_, Todo>("INSERT INTO todo (task) VALUES ($1) RETURNING id, task")
-            .bind(value)
-            .fetch_one(&self.executor)
-            .await?;
+        let result: Todo =
+            sqlx::query_as::<_, Todo>("INSERT INTO todo (task) VALUES ($1) RETURNING id, task")
+                .bind(value)
+                .fetch_one(&self.executor)
+                .await?;
         Ok(TodoResult::Added(result))
     }
 
     async fn update(&mut self, index: i32, value: String) -> Result<TodoResult, TodoError> {
-        let result: Todo = sqlx::query_as::<_, Todo>("UPDATE todo SET task=$1 WHERE id=$2 RETURNING id, task")
-            .bind(value)
-            .bind(index)
-            .fetch_one(&self.executor)
-            .await?;
+        let result: Todo =
+            sqlx::query_as::<_, Todo>("UPDATE todo SET task=$1 WHERE id=$2 RETURNING id, task")
+                .bind(value)
+                .bind(index)
+                .fetch_one(&self.executor)
+                .await?;
 
         Ok(TodoResult::Updated(result))
     }
 
     async fn delete(&mut self, index: i32) -> Result<TodoResult, TodoError> {
-        let result: Todo = sqlx::query_as::<_, Todo>("DELETE FROM todo WHERE id=$1 RETURNING id, task")
-            .bind(index)
-            .fetch_one(&self.executor)
-            .await?;
+        let result: Todo =
+            sqlx::query_as::<_, Todo>("DELETE FROM todo WHERE id=$1 RETURNING id, task")
+                .bind(index)
+                .fetch_one(&self.executor)
+                .await?;
 
         Ok(TodoResult::Deleted(result))
     }

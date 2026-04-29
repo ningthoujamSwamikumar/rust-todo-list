@@ -1,8 +1,11 @@
-use std::fmt::Display;
+use std::{fmt::Display, pin::Pin};
+
+use async_trait::async_trait;
+use serde::Serialize;
 
 use crate::error::TodoError;
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, sqlx::FromRow, Serialize)]
 pub struct Todo {
     pub id: i32,
     pub task: String,
@@ -14,7 +17,7 @@ impl Display for Todo {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum TodoResult {
     Cleared,
     Added(Todo),
@@ -37,20 +40,17 @@ impl Display for TodoResult {
     }
 }
 
+#[async_trait]
 pub trait TodoOps {
-    fn add(&mut self, value: String) -> impl Future<Output = Result<TodoResult, TodoError>>;
+    async fn add(&mut self, value: String) -> Result<TodoResult, TodoError>;
 
-    fn update(
-        &mut self,
-        index: i32,
-        value: String,
-    ) -> impl Future<Output = Result<TodoResult, TodoError>>;
+    async fn update(&mut self, index: i32, value: String) -> Result<TodoResult, TodoError>;
 
-    fn delete(&mut self, index: i32) -> impl Future<Output = Result<TodoResult, TodoError>>;
+    async fn delete(&mut self, index: i32) -> Result<TodoResult, TodoError>;
 
-    fn get(&self, index: i32) -> impl Future<Output = Result<TodoResult, TodoError>>;
+    async fn get(&self, index: i32) -> Result<TodoResult, TodoError>;
 
-    fn get_all(&self) -> impl Future<Output = Result<TodoResult, TodoError>>;
+    async fn get_all(&self) -> Result<TodoResult, TodoError>;
 
-    fn clear(&mut self) -> impl Future<Output = Result<TodoResult, TodoError>>;
+    async fn clear(&mut self) -> Result<TodoResult, TodoError>;
 }
