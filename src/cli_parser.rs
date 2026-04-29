@@ -15,28 +15,28 @@ pub enum Actions {
     Add {
         /// The task description
         #[arg()]
-        value: String,
+        task: String,
     },
-    /// Delete a task at index
+    /// Delete a task at id
     Delete {
-        /// The index of the task to be deleted
+        /// The id of the task to be deleted
         #[arg()]
-        index: usize,
+        id: i32,
     },
     /// Show a task or all task
     Show {
-        /// The index of the task to be shown, if None all tasks are shown
+        /// The id of the task to be shown, if None all tasks are shown
         #[arg()]
-        index: Option<usize>,
+        id: Option<i32>,
     },
-    /// Update a task at an index
+    /// Update a task at an id
     Update {
-        /// The index of the task to be updated
+        /// The id of the task to be updated
         #[arg(long, short)]
-        index: usize,
+        id: i32,
         /// The new task description
         #[arg(long, short)]
-        value: String,
+        task: String,
     },
     /// Clear all the tasks in the todo list
     Clear,
