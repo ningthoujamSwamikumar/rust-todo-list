@@ -13,12 +13,22 @@ use crate::{
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileStorage {
-    contents: Vec<String>,
+    contents: Vec<Todo>,
+    counter: i32,
 }
 
 impl FileStorage {
     pub fn new() -> Self {
-        FileStorage { contents: vec![] }
+        FileStorage {
+            contents: vec![],
+            counter: 0,
+        }
+    }
+
+    fn get_counter(&mut self) -> i32 {
+        let id = self.counter;
+        self.counter += 1;
+        id
     }
 
     /// Read todo list from a json file
@@ -48,76 +58,50 @@ impl FileStorage {
 
 #[async_trait]
 impl TodoOps for FileStorage {
-    async fn add(&mut self, value: String) -> Result<TodoResult, TodoError> {
-        self.contents.push(value.clone());
-        let i = self.contents.len() - 1;
+    async fn add(&mut self, task: String) -> Result<TodoResult, TodoError> {
+        let todo = Todo {
+            id: self.get_counter(),
+            task: task,
+        };
+        self.contents.push(todo.clone());
 
-        println!("Value added at {}", i);
+        println!("Value added at {}", &todo.id);
 
-        Ok(TodoResult::Added(Todo {
-            id: i as i32,
-            task: value,
-        }))
+        Ok(TodoResult::Added(todo))
     }
 
-    async fn update(&mut self, index: i32, value: String) -> Result<TodoResult, TodoError> {
-        let index = index as usize;
-        // processing when task are stored in file
-        if index >= self.contents.len() {
+    async fn update(&mut self, id: i32, task: String) -> Result<TodoResult, TodoError> {
+        let Some(todo) = self.contents.iter_mut().find(|v| v.id == id) else {
+            return Err(TodoError::InvalidInput("Todo not found!".into()));
+        };
+
+        todo.task = task;
+        println!("Value updated at index {}", id);
+
+        Ok(TodoResult::Updated(todo.clone()))
+    }
+
+    async fn delete(&mut self, id: i32) -> Result<TodoResult, TodoError> {
+        let Some(pos) = self.contents.iter().position(|v| v.id == id) else {
+            return Err(TodoError::InvalidInput("Todo not found!".into()));
+        };
+
+        let todo = self.contents.remove(pos);
+
+        println!("Value removed having id: {}", id);
+
+        Ok(TodoResult::Deleted(todo))
+    }
+
+    async fn get(&self, id: i32) -> Result<TodoResult, TodoError> {
+        let Some(todo) = self.contents.iter().find(|v| v.id == id) else {
             return Err(TodoError::InvalidInput("Invalid index provided!".into()));
         };
-        let Some(element) = self.contents.get_mut(index) else {
-            return Err(TodoError::AccessError(
-                "Failed to access the element at index!".into(),
-            ));
-        };
-        *element = value.clone();
-        println!("Value updated at index {}", index);
-
-        Ok(TodoResult::Updated(Todo {
-            id: index as i32,
-            task: value,
-        }))
-    }
-
-    async fn delete(&mut self, index: i32) -> Result<TodoResult, TodoError> {
-        let index = index as usize;
-        if index >= self.contents.len() {
-            return Err(TodoError::InvalidInput("Invalid index provided!".into()));
-        };
-        let task = self.contents.remove(index);
-
-        println!("Value removed from index {}", index);
-
-        Ok(TodoResult::Deleted(Todo {
-            id: index as i32,
-            task,
-        }))
-    }
-
-    async fn get(&self, index: i32) -> Result<TodoResult, TodoError> {
-        if let Some(value) = self.contents.get(index as usize) {
-            Ok(TodoResult::Gotten(Todo {
-                id: index,
-                task: value.clone(),
-            }))
-        } else {
-            Err(TodoError::InvalidInput("Invalid index provided!".into()))
-        }
+        Ok(TodoResult::Gotten(todo.clone()))
     }
 
     async fn get_all(&self) -> Result<TodoResult, TodoError> {
-        let todos: Vec<Todo> = self
-            .contents
-            .iter()
-            .enumerate()
-            .map(|(i, v)| Todo {
-                id: i as i32,
-                task: v.clone(),
-            })
-            .collect();
-
-        Ok(TodoResult::GottenAll(todos))
+        Ok(TodoResult::GottenAll(self.contents.clone()))
     }
 
     async fn clear(&mut self) -> Result<TodoResult, TodoError> {

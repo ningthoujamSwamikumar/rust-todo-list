@@ -1,11 +1,11 @@
-use std::{fmt::Display, pin::Pin};
+use std::fmt::Display;
 
 use async_trait::async_trait;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::error::TodoError;
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, sqlx::FromRow, Serialize)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, sqlx::FromRow, Serialize, Deserialize)]
 pub struct Todo {
     pub id: i32,
     pub task: String,
@@ -42,13 +42,13 @@ impl Display for TodoResult {
 
 #[async_trait]
 pub trait TodoOps {
-    async fn add(&mut self, value: String) -> Result<TodoResult, TodoError>;
+    async fn add(&mut self, task: String) -> Result<TodoResult, TodoError>;
 
-    async fn update(&mut self, index: i32, value: String) -> Result<TodoResult, TodoError>;
+    async fn update(&mut self, id: i32, task: String) -> Result<TodoResult, TodoError>;
 
-    async fn delete(&mut self, index: i32) -> Result<TodoResult, TodoError>;
+    async fn delete(&mut self, id: i32) -> Result<TodoResult, TodoError>;
 
-    async fn get(&self, index: i32) -> Result<TodoResult, TodoError>;
+    async fn get(&self, id: i32) -> Result<TodoResult, TodoError>;
 
     async fn get_all(&self) -> Result<TodoResult, TodoError>;
 
