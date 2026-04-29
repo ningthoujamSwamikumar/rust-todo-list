@@ -1,8 +1,4 @@
-use std::path::Path;
-
-use clap::Parser;
-
-use crate::{error::TodoError, file_storage::FileStorage, todo_list::TodoResult};
+use crate::{error::TodoError, todo_list::TodoResult};
 
 pub mod cli_parser;
 pub mod db_storage;
@@ -12,35 +8,6 @@ pub mod todo_list;
 
 #[cfg(test)]
 pub mod tests;
-
-/// Initializes a todo list which stores in a file.
-/// This function takes inputs from command line
-pub async fn init_file_todo() {
-    let cli = cli_parser::Cli::parse();
-
-    let path = Path::new("target/.todo_list.json");
-
-    let mut todo_list = match file_storage::FileStorage::from_file(path) {
-        Ok(list) => list,
-        Err(e) => {
-            println!("{:?}", e);
-            FileStorage::new()
-        }
-    };
-
-    let mut retrievals = Vec::<String>::new();
-    match action_handler(cli.action, &mut todo_list, &mut retrievals).await {
-        Ok(_) => println!("Action Completed Successfully"),
-        Err(e) => eprintln!("Error performing action:\n{:?}", e),
-    };
-
-    println!("retrievals:\n{:?}", retrievals);
-
-    match todo_list.write_file(path) {
-        Ok(_) => println!("Written to file"),
-        Err(e) => println!("{:?}", e),
-    }
-}
 
 pub async fn action_handler(
     action: cli_parser::Actions,
